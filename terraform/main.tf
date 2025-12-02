@@ -51,3 +51,66 @@ resource "aws_dynamodb_table" "users" {
     Project     = "SportsAlarm"
   }
 }
+
+# =================================================================
+# AWS Amplify App (Next.js)
+# =================================================================
+resource "aws_amplify_app" "sports_alarm" {
+  name       = "sports-alarm"
+  repository = var.repository
+  
+  # GitHub 토큰 (OAuth 토큰)
+  access_token = var.github_token
+
+  # Next.js (App Router)를 위한 설정 ★중요
+  platform = "WEB_COMPUTE"
+
+  # 빌드 설정 (Next.js가 배포될 때 실행할 명령어)
+  build_spec = <<-EOT
+    version: 1
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+  EOT
+
+  # 환경 변수 설정 (DB 접속용 키)
+  environment_variables = {
+    "DB_ACCESS_KEY_ID"     = var.aws_access_key  # ✅ 이름 변경
+    "DB_SECRET_ACCESS_KEY" = var.aws_secret_key  # ✅ 이름 변경
+    "DB_REGION"            = var.region          # ✅ 이름 변경
+    "NEXT_PUBLIC_API_URL"  = "/"
+  }
+
+  # 리액트/Next.js 라우팅을 위한 리다이렉트 규칙
+  custom_rule {
+    source = "/<*>"
+    status = "404-200"
+    target = "/index.html"
+  }
+}
+
+# =================================================================
+# Branch 연결 (Main 브랜치)
+# =================================================================
+resource "aws_amplify_branch" "main" {
+  app_id      = aws_amplify_app.sports_alarm.id
+  branch_name = "main"
+
+  # 프레임워크 자동 감지
+  framework = "Next.js - SSR"
+  
+  # 코드가 푸시되면 자동으로 빌드 시작
+  enable_auto_build = true
+}

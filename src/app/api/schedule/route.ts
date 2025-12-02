@@ -4,10 +4,10 @@ import { NextResponse } from "next/server";
 
 // 1. AWS 연결 설정 (변함 없음)
 const client = new DynamoDBClient({
-  region: "ap-northeast-2",
+  region: "ap-northeast-2", // 또는 process.env.DB_REGION
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.DB_ACCESS_KEY_ID!,        // ✅ 변경됨
+    secretAccessKey: process.env.DB_SECRET_ACCESS_KEY!, // ✅ 변경됨
   },
 });
 
