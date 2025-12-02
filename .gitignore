@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Terraform 관련 파일 (절대 올리면 안 됨)
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# 로컬 스크립트 제외
+crawler.py
+inject_test_data.py
