@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { Bell } from "lucide-react";
+import { getFCMToken } from "@/lib/firebase";
+// ★ 추가: 로고 컴포넌트 불러오기
+import TeamLogo from "@/components/TeamLogo";
 
 // 타입 정의
 interface Match {
@@ -20,7 +23,7 @@ export default function BaseballPage() {
   const [alarmList, setAlarmList] = useState<string[]>([]);
   const [userId, setUserId] = useState<string>("");
   
-  // ★ 추가: 오늘 날짜를 "YYYY-MM-DD" 모양으로 구하는 함수
+  // 오늘 날짜 구하기
   const getTodayString = () => {
     const today = new Date();
     const year = today.getFullYear();
@@ -29,10 +32,9 @@ export default function BaseballPage() {
     return `${year}-${month}-${day}`;
   }
 
-  // 오늘 날짜 저장 변수
   const [currentDate, setCurrentDate] = useState(getTodayString());
 
-  // 1. 사용자 ID & 알람 목록 불러오기
+  // 1. 사용자 ID & 알람 목록 & 토큰 저장
   useEffect(() => {
     let storedId = localStorage.getItem("sports_user_id");
     if (!storedId) {
@@ -41,7 +43,7 @@ export default function BaseballPage() {
     }
     setUserId(storedId);
 
-    // 내 알람 목록 가져오기
+    // (1) 내 알람 목록 가져오기
     async function fetchMyAlarms() {
       if (!storedId) return;
       try {
@@ -53,14 +55,41 @@ export default function BaseballPage() {
       }
     }
     fetchMyAlarms();
+
+    // (2) 내 FCM 토큰을 서버에 저장하기 (Sync)
+    async function syncFCMToken() {
+      if (!storedId) return;
+
+      try {
+        const dummySetFound = (found: boolean) => {}; 
+        const token = await getFCMToken(dummySetFound);
+
+        if (token) {
+          console.log("토큰 동기화 중:", token);
+          await fetch("/api/alarm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: storedId,
+              fcmToken: token,
+              action: "save_token"
+            }),
+          });
+          console.log("✅ 토큰이 서버에 저장되었습니다.");
+        }
+      } catch (e) {
+        console.error("토큰 동기화 실패:", e);
+      }
+    }
+    syncFCMToken();
+
   }, []);
 
-  // 2. 경기 데이터 가져오기 (날짜 동적 적용)
+  // 2. 경기 데이터 가져오기
   useEffect(() => {
     async function fetchSchedule() {
       setLoading(true);
       try {
-        // ★ 중요: currentDate 변수를 사용해서 API 호출
         console.log(`데이터 요청 날짜: ${currentDate}`);
         const res = await fetch(`/api/schedule?date=${currentDate}&type=baseball`);
         const data = await res.json();
@@ -75,7 +104,7 @@ export default function BaseballPage() {
     if (subMenu === "schedule") {
       fetchSchedule();
     }
-  }, [subMenu, currentDate]); // 날짜가 바뀌면 다시 실행
+  }, [subMenu, currentDate]);
 
   // 3. 알람 토글 함수
   const toggleAlarm = async (rawId: string | number) => {
@@ -106,7 +135,6 @@ export default function BaseballPage() {
       <div className="p-4 bg-gray-50 flex-1 min-h-screen">
         {subMenu === "schedule" && (
           <div className="space-y-4">
-            {/* 상단에 오늘 날짜 표시 */}
             <h2 className="text-lg font-bold text-gray-800">
               📅 {currentDate} 경기
             </h2>
@@ -120,17 +148,31 @@ export default function BaseballPage() {
               matches.map((match, index) => {
                 const currentId = String(match.match_id);
                 const isAlarmOn = alarmList.includes(currentId);
+                
                 return (
                   <div key={index} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-                    <div className="w-1/3 text-center font-bold text-lg text-gray-900 break-keep">{match.home_team}</div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-lg font-bold text-blue-600">{match.time}</span>
+                    
+                    {/* [홈팀] 로고 컴포넌트로 변경 */}
+                    <div className="w-1/3 flex justify-center">
+                      <TeamLogo teamName={match.home_team} />
                     </div>
-                    <div className="w-1/3 text-center font-bold text-lg text-gray-900 break-keep">{match.away_team}</div>
+
+                    {/* [시간] 가운데 정렬 및 VS 텍스트 추가 */}
+                    <div className="flex flex-col items-center w-1/4">
+                      <span className="text-lg font-bold text-blue-600">{match.time}</span>
+                      <span className="text-[10px] text-gray-400">VS</span>
+                    </div>
+
+                    {/* [원정팀] 로고 컴포넌트로 변경 */}
+                    <div className="w-1/3 flex justify-center">
+                      <TeamLogo teamName={match.away_team} />
+                    </div>
+                    
+                    {/* [알람 버튼] */}
                     <button 
                       onClick={() => toggleAlarm(match.match_id)}
                       style={{ backgroundColor: isAlarmOn ? '#2563EB' : '#F3F4F6', color: isAlarmOn ? 'white' : '#9CA3AF' }}
-                      className="p-2 rounded-full transition-all shadow-sm"
+                      className="p-2 rounded-full transition-all shadow-sm ml-2"
                     >
                       <Bell className={`w-5 h-5 ${isAlarmOn ? "fill-white" : ""}`} />
                     </button>

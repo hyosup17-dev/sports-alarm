@@ -114,3 +114,124 @@ resource "aws_amplify_branch" "main" {
   # 코드가 푸시되면 자동으로 빌드 시작
   enable_auto_build = true
 }
+
+# =================================================================
+# 3. 크롤러 람다 (Backend Logic)
+# =================================================================
+
+# 1) 람다가 사용할 역할(Role) 생성 - DB 쓰기 권한 필요
+resource "aws_iam_role" "lambda_crawler_role" {
+  name = "sports_crawler_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+# 2) 람다에게 DynamoDB 모든 권한 부여
+resource "aws_iam_role_policy_attachment" "lambda_dynamo_access" {
+  role       = aws_iam_role.lambda_crawler_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+}
+
+# 3) 람다에게 로그 남길 권한 부여 (CloudWatch)
+resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
+  role       = aws_iam_role.lambda_crawler_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# 4) 람다 함수 생성
+resource "aws_lambda_function" "crawler" {
+  filename      = "crawler_package.zip"    # 아까 만든 압축파일 이름
+  function_name = "SportsDataCrawler"
+  role          = aws_iam_role.lambda_crawler_role.arn
+  handler       = "lambda_function.lambda_handler" # 파일명.함수명
+  runtime       = "python3.9"
+  source_code_hash = filebase64sha256("crawler_package.zip") # 파일 바뀌면 재배포
+
+  # 환경 변수 (리전 정보 등)
+  environment {
+    variables = {
+      DB_REGION = var.region
+    }
+  }
+}
+
+# =================================================================
+# 4. 스케줄러 (EventBridge) - 매일 자동 실행
+# =================================================================
+
+# 1 규칙 생성: 한국 시간 새벽 4시 = UTC 19시 (전날)
+resource "aws_cloudwatch_event_rule" "daily_schedule" {
+  name                = "daily-sports-crawl"
+  description         = "매일 새벽 4시에 야구/축구 데이터 수집"
+  # cron(분 시 일 월 요일 연도) - UTC 기준
+  schedule_expression = "cron(0 19 * * ? *)" 
+}
+
+# 2 규칙을 람다와 연결
+resource "aws_cloudwatch_event_target" "trigger_crawler" {
+  rule      = aws_cloudwatch_event_rule.daily_schedule.name
+  target_id = "SportsCrawlerLambda"
+  arn       = aws_lambda_function.crawler.arn
+}
+
+# 3 EventBridge가 람다를 실행할 수 있게 권한 허용
+resource "aws_lambda_permission" "allow_eventbridge" {
+  statement_id  = "AllowExecutionFromEventBridge"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.crawler.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.daily_schedule.arn
+}
+
+# =================================================================
+# 5. 알람 발송 람다 (Notifier)
+# =================================================================
+
+# 1 람다 함수 생성
+resource "aws_lambda_function" "notifier" {
+  filename      = "notifier_package.zip"
+  function_name = "SportsNotifier"
+  role          = aws_iam_role.lambda_crawler_role.arn # 아까 만든 권한 재사용 (DB 읽기 필요)
+  handler       = "notifier.lambda_handler"
+  runtime       = "python3.9"
+  source_code_hash = filebase64sha256("notifier_package.zip")
+  
+  # 실행 시간 넉넉하게 (알림 보낼 사람 많을 수 있으니)
+  timeout = 60
+
+  environment {
+    variables = {
+      DB_REGION = var.region
+    }
+  }
+}
+
+# 2 스케줄러 (매분 실행)
+resource "aws_cloudwatch_event_rule" "every_minute" {
+  name                = "check-match-every-minute"
+  description         = "Fires every minute"
+  schedule_expression = "rate(1 minute)"
+}
+
+# 3 스케줄러 연결
+resource "aws_cloudwatch_event_target" "trigger_notifier" {
+  rule      = aws_cloudwatch_event_rule.every_minute.name
+  target_id = "SportsNotifierLambda"
+  arn       = aws_lambda_function.notifier.arn
+}
+
+# 4 권한 허용
+resource "aws_lambda_permission" "allow_eventbridge_notifier" {
+  statement_id  = "AllowExecutionFromEventBridgeNotifier"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.notifier.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.every_minute.arn
+}

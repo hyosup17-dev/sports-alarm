@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Bell } from "lucide-react";
+// ★ 추가 1: FCM 토큰 가져오는 함수 불러오기
+import { getFCMToken } from "@/lib/firebase";
 
 // 타입 정의
 interface Match {
@@ -20,7 +22,7 @@ export default function FootballPage() {
   const [alarmList, setAlarmList] = useState<string[]>([]);
   const [userId, setUserId] = useState<string>("");
   
-  // ★ 추가: 오늘 날짜를 "YYYY-MM-DD" 모양으로 구하는 함수
+  // 오늘 날짜 구하기
   const getTodayString = () => {
     const today = new Date();
     const year = today.getFullYear();
@@ -29,10 +31,9 @@ export default function FootballPage() {
     return `${year}-${month}-${day}`;
   }
 
-  // 오늘 날짜 저장 변수
   const [currentDate, setCurrentDate] = useState(getTodayString());
 
-  // 1. 사용자 ID & 알람 목록 불러오기
+  // 1. 사용자 ID & 알람 목록 & ★ 토큰 저장
   useEffect(() => {
     let storedId = localStorage.getItem("sports_user_id");
     if (!storedId) {
@@ -41,7 +42,7 @@ export default function FootballPage() {
     }
     setUserId(storedId);
 
-    // 내 알람 목록 가져오기
+    // (1) 내 알람 목록 가져오기
     async function fetchMyAlarms() {
       if (!storedId) return;
       try {
@@ -53,14 +54,44 @@ export default function FootballPage() {
       }
     }
     fetchMyAlarms();
+
+    // ★ 추가 2: 내 FCM 토큰을 서버에 저장하기 (Sync)
+    async function syncFCMToken() {
+      if (!storedId) return;
+
+      // 이미 권한이 있다면 조용히 토큰을 가져옵니다.
+      try {
+        // getFCMToken은 상태변경 함수를 인자로 받으므로 빈 함수를 넣어줌
+        const dummySetFound = (found: boolean) => {}; 
+        const token = await getFCMToken(dummySetFound);
+
+        if (token) {
+          console.log("토큰 동기화 중:", token);
+          // 서버로 전송 (action: "save_token")
+          await fetch("/api/alarm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: storedId,
+              fcmToken: token,
+              action: "save_token"
+            }),
+          });
+          console.log("✅ 토큰이 서버에 저장되었습니다.");
+        }
+      } catch (e) {
+        console.error("토큰 동기화 실패:", e);
+      }
+    }
+    syncFCMToken();
+
   }, []);
 
-  // 2. 경기 데이터 가져오기 (날짜 동적 적용)
+  // 2. 경기 데이터 가져오기
   useEffect(() => {
     async function fetchSchedule() {
       setLoading(true);
       try {
-        // ★ 중요: currentDate 변수를 사용해서 API 호출
         console.log(`데이터 요청 날짜: ${currentDate}`);
         const res = await fetch(`/api/schedule?date=${currentDate}&type=football`);
         const data = await res.json();
@@ -75,7 +106,7 @@ export default function FootballPage() {
     if (subMenu === "schedule") {
       fetchSchedule();
     }
-  }, [subMenu, currentDate]); // 날짜가 바뀌면 다시 실행
+  }, [subMenu, currentDate]);
 
   // 3. 알람 토글 함수
   const toggleAlarm = async (rawId: string | number) => {
@@ -106,7 +137,6 @@ export default function FootballPage() {
       <div className="p-4 bg-gray-50 flex-1 min-h-screen">
         {subMenu === "schedule" && (
           <div className="space-y-4">
-            {/* 상단에 오늘 날짜 표시 */}
             <h2 className="text-lg font-bold text-gray-800">
               📅 {currentDate} 경기
             </h2>

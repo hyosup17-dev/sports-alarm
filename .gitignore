@@ -49,8 +49,11 @@ next-env.d.ts
 # 로컬 스크립트 제외
 crawler.py
 inject_test_data.py
+test_auto_subscribe.py
 
 # Terraform 비밀 변수 파일 무시
 *.tfvars
 terraform.tfvars
 terraform/terraform.tfvars
+
+serviceAccountKey.json
