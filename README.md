@@ -99,6 +99,11 @@ Firebase 프로젝트 생성 및 serviceAccountKey.json 준비
 
 cd terraform
 
+3. Frontend Development
+
+npm install
+npm run dev
+
 # 1. 초기화
 terraform init
 
@@ -108,9 +113,3 @@ aws_secret_key = "..."
 
 # 3. 리소스 생성
 terraform apply
-
-
-3. Frontend Development
-
-npm install
-npm run dev
