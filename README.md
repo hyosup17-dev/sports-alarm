@@ -1,19 +1,19 @@
-⚾ Sports Alarm Service (Serverless Ver.)
+# ⚾ Sports Alarm Service (Serverless Ver.)
 
 "내가 응원하는 팀의 경기 시작 10분 전, 푸시 알림을 보내주는 개인화 PWA 서비스"
 
-📖 Project Overview (개요)
+# 📖 Project Overview (개요)
 
 이 프로젝트는 **"서버 관리 없는(Serverless) 완전 자동화 시스템"**을 목표로 구축되었습니다.
 사용자가 별도의 회원가입 없이 응원 팀을 설정하면, AWS Lambda와 EventBridge가 매일 자동으로 데이터를 수집하고 경기 직전에 알림을 발송합니다. 모든 인프라는 Terraform을 통해 코드로 관리됩니다.
 
-🏗️ Architecture (아키텍처)
+# 🏗️ Architecture (아키텍처)
 
 AWS Managed Service를 적극 활용하여 유지보수 비용을 최소화하고 안정성을 높였습니다.
 
 ![Architecture](./architecture_v1.png)
 
-🛠️ Tech Stack (기술 스택)
+# 🛠️ Tech Stack (기술 스택)
 
 Frontend
 
@@ -47,7 +47,7 @@ Notification
 
 Firebase Cloud Messaging (FCM): 웹 푸시 알림 전송
 
-🔥 Key Features (핵심 기능)
+# 🔥 Key Features (핵심 기능)
 
 개인화된 구독 시스템 (No Login):
 
@@ -69,7 +69,7 @@ PWA (Progressive Web App):
 
 - 모바일 브라우저에서 '홈 화면에 추가'를 통해 네이티브 앱과 유사한 UX를 제공합니다.
 
-🚀 Trouble Shooting (트러블 슈팅)
+# 🚀 Trouble Shooting (트러블 슈팅)
 
 이슈: Firebase FCM V1 API 마이그레이션 중 권한(Permission Denied) 오류 발생.
 
@@ -83,7 +83,7 @@ PWA (Progressive Web App):
 
 해결: 알림 발송 시 전체 데이터를 스캔하는 대신, Global Secondary Index(GSI) 또는 쿼리 필터링을 최적화하여 읽기 비용 감소 (추후 적용 예정).
 
-🏃 How to Run (실행 방법)
+# 🏃 How to Run (실행 방법)
 
 이 프로젝트는 Terraform을 통해 AWS 리소스를 생성합니다.
 
@@ -103,8 +103,8 @@ cd terraform
 terraform init
 
 # 2. 변수 설정 (terraform.tfvars 파일 생성 필요)
-# aws_access_key = "..."
-# aws_secret_key = "..."
+aws_access_key = "..."
+aws_secret_key = "..."
 
 # 3. 리소스 생성
 terraform apply
